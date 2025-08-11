@@ -1,0 +1,219 @@
+<!--
+  Romantic QR landing page (word-by-word type)
+  - Responsive single-file HTML/CSS/JS
+  - How to use: upload this file to GitHub Pages / Netlify / any static host
+    then generate a QR that points to the page URL.
+  - To change the shown text, edit the `lines` array in the script near the bottom.
+-->
+
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#ff7ab6" />
+  <title>Открыть</title>
+  <style>
+    :root{
+      --bg1:#ff9a9e; /* gradient */
+      --bg2:#fad0c4;
+      --accent:#ff4d89;
+      --muted:rgba(255,255,255,0.85);
+      --glass: rgba(255,255,255,0.12);
+      --card-blur:8px;
+      --max-width:720px;
+      --heart-size:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    body{
+      display:flex;align-items:center;justify-content:center;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      overflow:hidden;color:white;
+    }
+
+    .stage{
+      width:100%;max-width:var(--max-width);height:94vh;border-radius:28px;padding:28px;position:relative;
+      background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      box-shadow:0 10px 30px rgba(0,0,0,0.18);backdrop-filter: blur(var(--card-blur));
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    }
+
+    header{display:flex;align-items:center;gap:12px;width:100%;}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(45deg,var(--accent),#ffb4d2);display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 6px 18px rgba(255,77,137,0.18)}
+    h1{margin:0;font-size:18px;letter-spacing:0.4px}
+    p.lead{margin:0;color:var(--muted);font-size:14px}
+
+    .content{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:6px}
+    .card{width:100%;padding:28px;border-radius:18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));text-align:center;position:relative;overflow:hidden}
+
+    /* type text */
+    .message{font-size:20px;line-height:1.4;min-height:84px;display:flex;align-items:center;justify-content:center;flex-direction:column}
+    .line{font-weight:600;margin:6px 0;opacity:0}
+    .word{display:inline-block;margin-right:6px;opacity:0;transform:translateY(6px)}
+    .word.show{opacity:1;transform:translateY(0);transition:all 260ms cubic-bezier(.2,.9,.2,1)}
+
+    /* confetti canvas overlay */
+    canvas#confetti{position:absolute;inset:0;pointer-events:none}
+
+    .controls{display:flex;gap:8px;justify-content:center;margin-top:12px}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.14);color:var(--muted);padding:10px 14px;border-radius:12px;font-weight:600;backdrop-filter:blur(4px);cursor:pointer}
+    button.secondary{border-style:dashed}
+
+    footer{font-size:12px;color:rgba(255,255,255,0.7);margin-top:6px}
+
+    /* small screens */
+    @media (max-width:420px){.stage{border-radius:16px;padding:16px}.message{font-size:18px}}
+  </style>
+</head>
+<body>
+  <div class="stage" role="main">
+    <header>
+      <div class="logo">❤</div>
+      <div>
+        <p class="lead">Честно говоря, чтобы воплотить эту идею, я немножко подсмотрел у ChatGPT😉</p>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="card">
+
+        <div class="message" aria-live="polite" id="message">
+          <!-- lines will be injected here -->
+        </div>
+
+        <div class="controls">
+        </div>
+        <button id="replay">Повтор</button>
+        <button id="toggle-sound" class="secondary">Звук</button>
+        <footer>Маленькие послания от большого сердца!</footer>
+      </div>
+    </div>
+
+    <canvas id="confetti"></canvas>
+  </div>
+
+<script>
+// --- Customize text here ---
+const lines = [
+  "Я исчезну так же тихо, как пришёл.",
+  "Но аромат этих цветов останется на два, на три дня раньше твоего праздника.",
+  "Когда же он наступит, вспомни: тот, кто держал букет, держал в руках и свою тайну."
+];
+// ---------------------------
+
+const messageEl = document.getElementById('message');
+const confettiCanvas = document.getElementById('confetti');
+const replayBtn = document.getElementById('replay');
+const toggleSoundBtn = document.getElementById('toggle-sound');
+let soundOn = false;
+
+// create line elements
+messageEl.innerHTML = '';
+lines.forEach((t, i) => {
+  const div = document.createElement('div');
+  div.className = 'line';
+  div.dataset.index = i;
+  messageEl.appendChild(div);
+});
+
+// function to create word spans
+function populateWords(){
+  document.querySelectorAll('.line').forEach((el, idx)=>{
+    el.innerHTML = '';
+    const text = lines[idx];
+    const words = text.split(/\s+/).filter(Boolean);
+    words.forEach((w, j)=>{
+      const span = document.createElement('span'); span.className = 'word'; span.textContent = w; el.appendChild(span);
+      const spacer = document.createElement('span'); spacer.textContent = ' '; spacer.className='sp'; el.appendChild(spacer);
+    });
+  });
+}
+populateWords();
+
+// show words one by one
+async function playAnimation(){
+  // reset
+  document.querySelectorAll('.word').forEach(w=>{ w.classList.remove('show'); });
+  document.querySelectorAll('.line').forEach(l=>{ l.style.opacity = 1; });
+  // small delay
+  await new Promise(r=>setTimeout(r,300));
+
+  for(let li=0; li<lines.length; li++){
+    const lineEl = document.querySelector(`.line[data-index="${li}"]`);
+    const words = Array.from(lineEl.querySelectorAll('.word'));
+    // reveal words sequentially
+    for(let wi=0; wi<words.length; wi++){
+      words[wi].classList.add('show');
+      if(soundOn) playTick();
+      await new Promise(r=>setTimeout(r, 300)); // delay between words
+    }
+    // pause between lines
+    await new Promise(r=>setTimeout(r, 600));
+  }
+  // confetti at the end
+  burstConfetti();
+}
+
+// confetti (same as before)
+function burstConfetti(){
+  const ctx = confettiCanvas.getContext('2d');
+  resizeCanvas();
+  const W = confettiCanvas.width; const H = confettiCanvas.height;
+  const pieces = [];
+  const colors = ['#fff0f6','#ffd6e8','#ffb3c6','#ff84a1','#ff4d89','#ffc6d9'];
+  for(let i=0;i<120;i++){
+    pieces.push({x: Math.random()*W, y: -Math.random()*H, r: 2+Math.random()*6, vx:(Math.random()-0.5)*3, vy:2+Math.random()*4, c: colors[Math.floor(Math.random()*colors.length)], rot:Math.random()*360, vr: (Math.random()-0.5)*8});
+  }
+  let t=0;
+  function frame(){
+    t++; if(t>160) return;
+    ctx.clearRect(0,0,W,H);
+    pieces.forEach(p=>{
+      p.x += p.vx; p.y += p.vy; p.vy += 0.02; p.rot += p.vr;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);
+      ctx.restore();
+    });
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+function resizeCanvas(){
+  confettiCanvas.width = confettiCanvas.clientWidth * window.devicePixelRatio;
+  confettiCanvas.height = confettiCanvas.clientHeight * window.devicePixelRatio;
+}
+
+// Sound effect for word appearance
+function playTick(){
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.value = 660 + Math.random()*60;
+  g.gain.value = 0.08;
+  o.connect(g); g.connect(ctx.destination);
+  o.start();
+  o.stop(ctx.currentTime + 0.09);
+  setTimeout(()=>ctx.close(), 150);
+}
+
+// Button handlers
+replayBtn.addEventListener('click', ()=>{
+  populateWords();
+  playAnimation();
+});
+toggleSoundBtn.addEventListener('click', ()=>{
+  soundOn = !soundOn;
+  toggleSoundBtn.textContent = soundOn ? "Tovush: Yoqilgan" : "Tovush: O'chirilgan";
+});
+
+window.addEventListener('resize', resizeCanvas);
+
+// Initial animation
+setTimeout(playAnimation, 400);
+
+</script>
+</body>
+</html>
